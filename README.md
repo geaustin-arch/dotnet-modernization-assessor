@@ -1,15 +1,16 @@
 # AI .NET Modernization Assessor
 
-An API prototype that combines a bounded, non-executing scanner for common legacy .NET signals with a Gemini-generated incremental migration plan. Static findings are produced first; model risks and migration waves must reference those finding IDs. When the model is disabled or produces invalid output, the app returns a deterministic plan.
+An API prototype that combines a bounded, non-executing scanner for common legacy .NET signals with a Gemini-generated incremental migration plan. Static findings are produced first; model risks and migration waves must reference every finding ID. When the model is disabled or produces invalid output, the app returns a deterministic plan.
 
 ## What it demonstrates
 
 - A narrow HTTP API and typed request/response contracts for C# source samples.
-- Safe handling of source snippets: no code is built or executed, file paths are checked, project XML DTD/entity declarations are rejected, and input size is bounded.
+- Safe handling of source snippets: no code is built or executed, paths are canonicalized and checked, project XML DTD/entity declarations are rejected, and input size is bounded.
 - Deterministic detection for classic `System.Web`, `BinaryFormatter`, `Thread.Abort`, legacy HTTP APIs, `ConfigurationManager`, and .NET Remoting markers.
 - `.csproj` target framework extraction without loading project dependencies.
-- Gemini structured output on Vertex AI grounded in scanner findings rather than raw, arbitrary model guesses.
-- Reference validation that rejects plans which cite findings the scanner did not return.
+- Gemini structured output on Google Cloud grounded in scanner findings rather than raw, arbitrary model guesses.
+- Best-effort filtering for common secrets and email addresses in source excerpts before model calls.
+- Plan validation that rejects unknown references and plans that fail to account for any detected finding.
 - Mocked model tests and offline fallback behavior; no cloud credentials are needed for CI.
 
 ## Run locally
@@ -24,21 +25,21 @@ uvicorn modernization_assessor.app:app --reload
 
 Open `http://127.0.0.1:8000/docs`. The deterministic assessment works without Google Cloud credentials.
 
-## Enable Gemini on Vertex AI
+## Enable Gemini on Google Cloud
 
-Install the optional SDK extra and configure ADC. The project needs billing, the Vertex AI API, and the `roles/aiplatform.user` permission.
+Install the optional SDK extra and configure Application Default Credentials (ADC). The Google Cloud project needs billing, the Gemini Enterprise Agent Platform API (`aiplatform.googleapis.com`), and permission to invoke models, such as `roles/aiplatform.user`.
 
 ```bash
-pip install -e '.[vertex]'
+pip install -e '.[google-cloud]'
 gcloud auth application-default login
 export GOOGLE_CLOUD_PROJECT="your-project-id"
 export GOOGLE_CLOUD_LOCATION="global"
 export GEMINI_ENABLED="true"
-export GEMINI_MODEL="gemini-2.5-flash"
+export GEMINI_MODEL="gemini-3.8-flash"
 uvicorn modernization_assessor.app:app --reload
 ```
 
-On PowerShell, use `$env:GOOGLE_CLOUD_PROJECT="your-project-id"` syntax. Vertex calls may incur charges. Never submit proprietary source or secrets unless your organization has approved that data flow.
+On PowerShell, use `$env:GOOGLE_CLOUD_PROJECT="your-project-id"` syntax. Model calls may incur charges. Only bounded scanner findings (not full source files) are sent to the model. Secret filtering is best-effort; never submit proprietary source or secrets unless your organization has approved that data flow.
 
 ## Example request
 

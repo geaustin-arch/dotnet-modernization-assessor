@@ -31,7 +31,10 @@ def _safe_path(path: str) -> str:
     if (parsed.is_absolute() or re.match(r"^[A-Za-z]:", normalized)
             or ".." in parsed.parts or parsed.suffix.lower() not in SUPPORTED_SUFFIXES):
         raise ValueError(f"Unsupported or unsafe source path: {path}")
-    return normalized
+    canonical = parsed.as_posix()
+    if canonical in {"", "."}:
+        raise ValueError("Source path must name a supported file")
+    return canonical
 
 
 def scan(request: AssessmentRequest) -> tuple[list[str], list[Finding]]:
@@ -41,9 +44,10 @@ def scan(request: AssessmentRequest) -> tuple[list[str], list[Finding]]:
     seen_paths: set[str] = set()
     for item in request.files:
         path = _safe_path(item.path)
-        if path in seen_paths:
+        path_key = path.casefold()
+        if path_key in seen_paths:
             raise ValueError(f"Duplicate source path: {path}")
-        seen_paths.add(path)
+        seen_paths.add(path_key)
         total += len(item.content.encode("utf-8"))
         if total > TOTAL_BYTES_LIMIT:
             raise ValueError("Combined source content exceeds the 200 KB demo limit")

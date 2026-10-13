@@ -1,17 +1,33 @@
 from __future__ import annotations
 
 from typing import Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SourceFile(BaseModel):
     path: str = Field(min_length=1, max_length=240)
     content: str = Field(min_length=1, max_length=20_000)
 
+    @field_validator("path")
+    @classmethod
+    def trim_path(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("path must not be blank")
+        return value
+
 
 class AssessmentRequest(BaseModel):
     project_name: str = Field(min_length=1, max_length=120)
     files: list[SourceFile] = Field(min_length=1, max_length=30)
+
+    @field_validator("project_name")
+    @classmethod
+    def trim_project_name(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("project_name must not be blank")
+        return value
 
 
 class Finding(BaseModel):
@@ -26,13 +42,13 @@ class Finding(BaseModel):
 class MigrationWave(BaseModel):
     name: str = Field(min_length=2, max_length=100)
     goal: str = Field(min_length=8, max_length=400)
-    finding_ids: list[str] = Field(max_length=20)
+    finding_ids: list[str] = Field(max_length=180)
     checks: list[str] = Field(min_length=1, max_length=5)
 
 
 class RiskItem(BaseModel):
     risk: str = Field(min_length=5, max_length=300)
-    finding_ids: list[str] = Field(min_length=1, max_length=20)
+    finding_ids: list[str] = Field(min_length=1, max_length=180)
     mitigation: str = Field(min_length=8, max_length=400)
 
 
@@ -46,7 +62,7 @@ class ModernizationPlan(BaseModel):
 
 class AssessmentResponse(BaseModel):
     project_name: str
-    analysis_mode: Literal["vertex_gemini", "deterministic_fallback"]
+    analysis_mode: Literal["google_cloud_gemini", "deterministic_fallback"]
     detected_target_frameworks: list[str]
     findings: list[Finding]
     plan: ModernizationPlan

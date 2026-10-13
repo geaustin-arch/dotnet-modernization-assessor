@@ -1,0 +1,3 @@
+name: AI .NET Modernization Assessor
+summary: Combines deterministic C# and project-file scanning with evidence-grounded Gemini migration planning.
+level: intermediate-to-advanced

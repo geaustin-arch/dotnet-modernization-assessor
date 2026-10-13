@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dotnet-modernization-assessor"
+version = "0.1.0"
+description = "Evidence-grounded modernization assessment for legacy .NET source samples."
+requires-python = ">=3.11"
+dependencies = ["fastapi>=0.110", "uvicorn[standard]>=0.27", "pydantic>=2.6"]
+
+[project.optional-dependencies]
+vertex = ["google-genai>=1.0"]
+test = ["pytest>=8", "httpx>=0.27"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

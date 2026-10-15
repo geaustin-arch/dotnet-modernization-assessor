@@ -9,7 +9,7 @@ An API prototype that combines a bounded, non-executing scanner for common legac
 - Deterministic detection for classic `System.Web`, `BinaryFormatter`, `Thread.Abort`, legacy HTTP APIs, `ConfigurationManager`, and .NET Remoting markers.
 - `.csproj` target framework extraction without loading project dependencies.
 - Gemini structured output on Google Cloud grounded in scanner findings rather than raw, arbitrary model guesses.
-- Best-effort filtering for common secrets and email addresses in source excerpts before model calls.
+- Model data minimization excludes caller source excerpts, paths, and project names entirely.
 - Plan validation that rejects unknown references and plans that fail to account for any detected finding.
 - Mocked model tests and offline fallback behavior; no cloud credentials are needed for CI.
 
@@ -18,12 +18,18 @@ An API prototype that combines a bounded, non-executing scanner for common legac
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e '.[test]'
+pip install --require-hashes -r requirements.lock
+pip install --no-deps -e .
 pytest -q
-uvicorn modernization_assessor.app:app --reload
+uvicorn modernization_assessor.app:app --host 127.0.0.1
 ```
 
-Open `http://127.0.0.1:8000/docs`. The deterministic assessment works without Google Cloud credentials.
+Set `AUTH_PUBLIC_KEY` (RSA PEM), `AUTH_ISSUER`, and `AUTH_AUDIENCE` from your
+identity provider. Send its token in `Authorization: Bearer <token>` with
+`assessments:run` permission. Tokens require `sub`, `tenant_id`, `iat`, `exp`,
+`iss`, `aud`, and `permissions`. Missing configuration fails closed; no anonymous
+bypass exists. `/health` is public, and interactive docs are disabled. Deterministic
+assessment needs no cloud credentials. See [SECURITY.md](SECURITY.md).
 
 ## Enable Gemini on Google Cloud
 
@@ -36,10 +42,15 @@ export GOOGLE_CLOUD_PROJECT="your-project-id"
 export GOOGLE_CLOUD_LOCATION="global"
 export GEMINI_ENABLED="true"
 export GEMINI_MODEL="gemini-3.8-flash"
-uvicorn modernization_assessor.app:app --reload
+uvicorn modernization_assessor.app:app --host 127.0.0.1
 ```
 
-On PowerShell, use `$env:GOOGLE_CLOUD_PROJECT="your-project-id"` syntax. Model calls may incur charges. Only bounded scanner findings (not full source files) are sent to the model. Secret filtering is best-effort; never submit proprietary source or secrets unless your organization has approved that data flow.
+On PowerShell, use `$env:GOOGLE_CLOUD_PROJECT="your-project-id"` syntax. Model calls may incur charges. Model calls receive only scanner-owned categories/rationales, finding IDs, and
+validated framework names. Caller project names, paths, source excerpts, and
+package names are excluded. Treat model use as an approved data flow; findings
+can still reveal technical characteristics. Calls have a 10-second SDK timeout,
+one attempt, and a 4,096-token output cap. Invalid output and provider failures
+return a deterministic plan with a sanitized `fallback_reason`.
 
 ## Example request
 
@@ -58,3 +69,40 @@ Send it to `POST /assess`. The response shows detected frameworks, evidence-back
 ## Design limits
 
 The scanner is a small pattern-based sample, not a Roslyn analyzer and not a complete inventory of a repository. It accepts at most 30 files, 20 KB per file, and 200 KB total. Results should start a technical discovery and characterization-testing process; they do not replace dependency analysis, build validation, architecture review, security assessment, or deployment planning.
+
+## Evidence and dependency inventory
+
+Responses include `scanner_version`, `input_sha256`, `dependency_inventory`,
+`build_validation: "not_evaluated"`, and `deployment_readiness: "not_evaluated"`.
+Declared package/project/assembly references are read without evaluating MSBuild.
+Conditions, property expressions, and missing package versions are marked
+unresolved. Imported files, central package versions, transitive dependencies,
+and runtime compatibility require further analysis; inventory is not resolution.
+Project XML uses defusedxml with DTD/entities/external access forbidden. UTF-8
+per-file and aggregate byte limits apply before analysis.
+
+No source is persisted by this service. Keep request bodies and generated
+responses out of gateway/APM logs. Source is returned only in response to its
+own authenticated assessment request. The input digest is for provenance, not
+an independent claim of correctness or a stable semantic code fingerprint.
+
+## Safe validation and deployment sequence
+
+1. Inventory the complete solution, imports, central package files, dependencies,
+   deployment topology, integrations, data migration, and business constraints.
+2. Add characterization tests and record baseline compatibility/performance.
+3. If build validation is introduced, run restore/build/tests in a separate
+   disposable sandbox. MSBuild and restore can execute untrusted code. Give it
+   no production credentials, no host socket, no general network access, and
+   strict CPU/memory/time limits. Do not execute builds inside this HTTP API.
+4. Use successful baseline/target build and test results as evidence; keep
+   unresolved failures explicit. Approve each migration wave through architecture review.
+5. Deploy an immutable image to a canary, verify health/error/latency and data
+   compatibility, and use a documented rollback gate before increasing traffic.
+
+Required deployment controls include gateway TLS/fleet quotas, managed identity,
+provider budgets, required CI checks, and monitoring for fallback/error rates.
+Dependency resolution, an isolated build worker, semantic/Roslyn analysis, and
+runtime deployment discovery remain explicit future work; this service does
+not claim to perform them. Rich reports and automated remediation PRs are
+optional after that evidence pipeline exists.

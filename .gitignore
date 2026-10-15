@@ -3,3 +3,14 @@ __pycache__/
 .pytest_cache/
 .env
 *.py[cod]
+
+# Runtime data, credentials, and generated artifacts
+data/
+*.sqlite3*
+*.pem
+.env*
+!.env.example
+
+*.egg-info/
+build/
+dist/

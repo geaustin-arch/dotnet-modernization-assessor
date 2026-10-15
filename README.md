@@ -106,3 +106,28 @@ Dependency resolution, an isolated build worker, semantic/Roslyn analysis, and
 runtime deployment discovery remain explicit future work; this service does
 not claim to perform them. Rich reports and automated remediation PRs are
 optional after that evidence pipeline exists.
+
+## Local Docker validation
+
+Requires Docker Engine/Desktop with the Compose v2 plugin. From this repository:
+
+```bash
+docker compose config --quiet
+docker compose up --build --wait --wait-timeout 120
+python3 scripts/docker_smoke.py
+docker compose down
+```
+
+The API binds only to `127.0.0.1:8011`. The default configuration deliberately
+has no identity credentials: `/health` succeeds, docs return 404, and protected
+requests return 503. The smoke script expects this unconfigured baseline;
+it does not prove authenticated business operations or storage recovery.
+Existing application tests cover those paths. The `Local Docker` workflow builds
+and runs the actual image with the same Compose settings.
+
+For authenticated local requests, provide `AUTH_ISSUER`, `AUTH_AUDIENCE`, and
+`AUTH_PUBLIC_KEY` (the full RSA PEM) through your shell or a private `.env` file,
+then recreate the container. Use tokens from your configured identity provider.
+Never commit credentials. Model calls remain disabled in this local configuration.
+The container runs as UID 65532 with a read-only root filesystem, a temporary
+`/tmp`, dropped capabilities, and CPU/memory/process limits.
